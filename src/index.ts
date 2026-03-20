@@ -4,6 +4,8 @@ import { writeFileSync, readFileSync, existsSync, mkdirSync, readdirSync } from 
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
+import https from "node:https";
+import { homedir } from "node:os";
 import {
   detectAgents,
   allAgentTargets,
@@ -1220,6 +1222,93 @@ async function cmdSync(): Promise<void> {
   info("Restart your agents to pick up the changes.");
 }
 
+// ── Update check ────────────────────────────────────────────────
+
+const UPDATE_CHECK_FILE = join(homedir(), ".zerocode", "update-check.json");
+const UPDATE_CHECK_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
+
+function compareVersions(a: string, b: string): number {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+function fetchLatestVersion(): Promise<string | null> {
+  return new Promise((resolve) => {
+    const req = https.get(
+      "https://registry.npmjs.org/@whylineee/zerocode/latest",
+      { headers: { Accept: "application/json" }, timeout: 3000 },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk: Buffer) => { data += chunk.toString(); });
+        res.on("end", () => {
+          try {
+            const json = JSON.parse(data);
+            resolve(json.version ?? null);
+          } catch {
+            resolve(null);
+          }
+        });
+      }
+    );
+    req.on("error", () => resolve(null));
+    req.on("timeout", () => { req.destroy(); resolve(null); });
+  });
+}
+
+async function checkForUpdate(): Promise<void> {
+  try {
+    // Read cached check
+    if (existsSync(UPDATE_CHECK_FILE)) {
+      const cached = JSON.parse(readFileSync(UPDATE_CHECK_FILE, "utf-8"));
+      const age = Date.now() - (cached.timestamp ?? 0);
+      if (age < UPDATE_CHECK_INTERVAL) {
+        // Use cached result
+        if (cached.latest && compareVersions(cached.latest, PKG_VERSION) > 0) {
+          printUpdateNotice(cached.latest);
+        }
+        return;
+      }
+    }
+
+    // Fetch fresh
+    const latest = await fetchLatestVersion();
+    if (!latest) return;
+
+    // Cache result
+    const cacheDir = join(homedir(), ".zerocode");
+    if (!existsSync(cacheDir)) mkdirSync(cacheDir, { recursive: true });
+    writeFileSync(
+      UPDATE_CHECK_FILE,
+      JSON.stringify({ timestamp: Date.now(), latest }),
+      "utf-8"
+    );
+
+    if (compareVersions(latest, PKG_VERSION) > 0) {
+      printUpdateNotice(latest);
+    }
+  } catch {
+    // Fail silently — update check is best-effort
+  }
+}
+
+function printUpdateNotice(latest: string): void {
+  const Y = "\x1b[33m";
+  const C = "\x1b[36m";
+  const B = "\x1b[1m";
+  const R = "\x1b[0m";
+  const D = "\x1b[2m";
+  console.log(`${Y}${B}  ┌──────────────────────────────────────────┐${R}`);
+  console.log(`${Y}${B}  │  Update available: ${D}${PKG_VERSION}${R}${Y}${B} → ${C}${latest}${R}${Y}${B}              │${R}`);
+  console.log(`${Y}${B}  │  Run: ${C}npm i -g @whylineee/zerocode${R}${Y}${B}        │${R}`);
+  console.log(`${Y}${B}  └──────────────────────────────────────────┘${R}`);
+  console.log();
+}
+
 // ── Main ─────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
@@ -1227,6 +1316,7 @@ async function main(): Promise<void> {
   const isVersion = command === "version" || command === "--version" || command === "-v";
   if (!isVersion) {
     banner(PKG_VERSION);
+    await checkForUpdate();
   }
 
   if (!command) {
