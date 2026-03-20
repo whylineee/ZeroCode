@@ -1,0 +1,47 @@
+{
+  "name": "@whylineee/zerocode",
+  "version": "0.1.1",
+  "description": "CLI to install MCP servers and skills to any local AI agent",
+  "type": "module",
+  "bin": {
+    "zerocode": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "ai",
+    "agents",
+    "mcp",
+    "skills",
+    "cli",
+    "zerocode",
+    "claude",
+    "cursor",
+    "windsurf",
+    "cline",
+    "codex",
+    "model-context-protocol"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/whylineee/ZeroCode.git"
+  },
+  "homepage": "https://github.com/whylineee/ZeroCode#readme",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
+  }
+}
