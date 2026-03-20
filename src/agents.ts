@@ -167,7 +167,12 @@ export function allAgentTargets(): AgentInfo[] {
   return resolveAgents();
 }
 
+export function supportsJsonConfig(agent: AgentInfo): boolean {
+  return agent.id !== "codex";
+}
+
 export function readAgentConfig(agent: AgentInfo): McpConfig {
+  if (!supportsJsonConfig(agent)) return {};
   if (!existsSync(agent.configPath)) {
     return {};
   }
@@ -195,19 +200,22 @@ export function addMcpToAgent(
   agent: AgentInfo,
   serverName: string,
   entry: McpServerEntry
-): void {
+): boolean {
+  if (!supportsJsonConfig(agent)) return false;
   const config = readAgentConfig(agent);
   if (!config.mcpServers) {
     config.mcpServers = {};
   }
   config.mcpServers[serverName] = entry;
   writeAgentConfig(agent, config);
+  return true;
 }
 
 export function removeMcpFromAgent(
   agent: AgentInfo,
   serverName: string
 ): boolean {
+  if (!supportsJsonConfig(agent)) return false;
   const config = readAgentConfig(agent);
   if (!config.mcpServers || !config.mcpServers[serverName]) {
     return false;

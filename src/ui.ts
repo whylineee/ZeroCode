@@ -22,7 +22,8 @@ const G1 = "\x1b[38;5;250m";  // light gray
 const G2 = "\x1b[38;5;244m";  // mid gray
 const G3 = "\x1b[38;5;238m";  // dark gray
 
-export function banner(): void {
+export function banner(version?: string): void {
+  const ver = version ?? "0.0.0";
   console.log();
   console.log(`${C1}${BOLD}    ███████╗${C2}███████╗${C3}██████╗  ${C4}██████╗ ${RESET}`);
   console.log(`${C1}${BOLD}    ╚══███╔╝${C2}██╔════╝${C3}██╔══██╗${C4}██╔═══██╗${RESET}`);
@@ -32,7 +33,7 @@ export function banner(): void {
   console.log(`${C1}${BOLD}    ╚══════╝${C2}╚══════╝${C3}╚═╝  ╚═╝${C4} ╚═════╝ ${RESET}`);
   console.log();
   console.log(`${G3}    ──────────────────────────────────${RESET}`);
-  console.log(`${P1}${BOLD}       C O D E${RESET}  ${G2}${DIM}v0.1.1${RESET}`);
+  console.log(`${P1}${BOLD}       C O D E${RESET}  ${G2}${DIM}v${ver}${RESET}`);
   console.log(`${G2}       MCP · Skills · Agents CLI${RESET}`);
   console.log(`${G3}    ──────────────────────────────────${RESET}`);
   console.log();

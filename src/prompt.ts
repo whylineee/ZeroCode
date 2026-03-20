@@ -18,7 +18,11 @@ export async function choose<T extends { name: string }>(
   items: T[]
 ): Promise<T | undefined> {
   if (items.length === 0) return undefined;
-  if (items.length === 1) return items[0];
+  if (items.length === 1) {
+    console.log(`\n  ${label}\n`);
+    console.log(`  Auto-selected: ${items[0].name}`);
+    return items[0];
+  }
 
   console.log(`\n  ${label}\n`);
   for (let i = 0; i < items.length; i++) {

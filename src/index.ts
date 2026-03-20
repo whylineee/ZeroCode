@@ -2,6 +2,7 @@
 
 import { writeFileSync, readFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
 import {
   detectAgents,
@@ -9,11 +10,23 @@ import {
   addMcpToAgent,
   removeMcpFromAgent,
   listInstalledMcp,
+  supportsJsonConfig,
 } from "./agents.js";
 import type { AgentInfo, McpServerEntry } from "./agents.js";
 import { mcpRegistry, skillRegistry, findMcp, findSkill } from "./registry.js";
-import { banner, heading, success, warn, error, info, item, table, divider, splashDetect, splashDone } from "./ui.js";
+import { banner, heading, success, warn, error, info, item, table, divider } from "./ui.js";
 import { choose, chooseMultiple, confirm, ask, askEnvVars } from "./prompt.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const PKG_VERSION: string = (() => {
+  try {
+    const pkg = JSON.parse(readFileSync(join(__dirname, "..", "package.json"), "utf-8"));
+    return pkg.version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+})();
 
 // ── Arg parsing ──────────────────────────────────────────────────
 
@@ -35,6 +48,7 @@ function printUsage(): void {
   console.log("    zerocode remove mcp <name>       Remove MCP server from an agent");
   console.log("    zerocode status                  Show what's installed on each agent");
   console.log("    zerocode doctor                  Check your setup for issues");
+  console.log("    zerocode sync                    Copy MCP servers from one agent to another");
   console.log("    zerocode export                  Export config to shareable .zerocode.json");
   console.log("    zerocode import [path]            Import config from .zerocode.json");
   console.log("    zerocode backup                  Backup all agent configs");
@@ -215,8 +229,13 @@ async function cmdAddMcp(): Promise<void> {
     return;
   }
 
-  addMcpToAgent(agent, serverName, entry);
+  const written = addMcpToAgent(agent, serverName, entry);
   console.log();
+  if (!written) {
+    warn(`${agent.name} does not use JSON config — MCP must be configured manually.`);
+    info(`Add the server entry to: ${agent.configPath}`);
+    return;
+  }
   success(`${mcp.name} installed to ${agent.name}`);
   info(`Config written to: ${agent.configPath}`);
 
@@ -292,6 +311,13 @@ async function cmdRemoveMcp(): Promise<void> {
   if (agentFlag) {
     const all = allAgentTargets();
     agent = all.find((a) => a.id === agentFlag);
+    if (!agent) {
+      error(`Agent "${agentFlag}" not found. Available agents:`);
+      for (const a of detectAgents()) {
+        item(a.id, a.name);
+      }
+      return;
+    }
   } else {
     const detected = detectAgents();
     agent = await choose("Remove from which agent?", detected);
@@ -983,7 +1009,12 @@ async function configureAddMcp(agent: AgentInfo): Promise<void> {
     return;
   }
 
-  addMcpToAgent(agent, serverName, entry);
+  const written = addMcpToAgent(agent, serverName, entry);
+  if (!written) {
+    warn(`${agent.name} does not use JSON config — MCP must be configured manually.`);
+    info(`Add the server entry to: ${agent.configPath}`);
+    return;
+  }
   success(`${mcp.name} installed to ${agent.name}`);
   info("Restart your agent to pick up the new MCP server.");
 }
@@ -1067,13 +1098,135 @@ async function configureRemoveMcp(agent: AgentInfo): Promise<void> {
   }
 }
 
+// ── Sync ─────────────────────────────────────────────────────────
+
+async function cmdSync(): Promise<void> {
+  heading("Sync MCP servers between agents");
+
+  const detected = detectAgents();
+  if (detected.length < 2) {
+    warn("Need at least 2 detected agents to sync.");
+    if (detected.length === 1) {
+      info(`Only found: ${detected[0].name}`);
+    }
+    info("Install more agents and re-run.");
+    return;
+  }
+
+  // Filter to agents that support JSON config (can read from)
+  const readable = detected.filter((a) => supportsJsonConfig(a));
+  if (readable.length === 0) {
+    warn("No agents with readable JSON config found.");
+    return;
+  }
+
+  // Step 1 — Pick source agent
+  const source = await choose("Copy FROM which agent?", readable);
+  if (!source) {
+    warn("No source agent selected. Aborting.");
+    return;
+  }
+
+  const installed = listInstalledMcp(source);
+  const keys = Object.keys(installed);
+
+  if (keys.length === 0) {
+    warn(`${source.name} has no MCP servers configured. Nothing to sync.`);
+    return;
+  }
+
+  console.log();
+  success(`${source.name} has ${keys.length} MCP server(s):`);
+  console.log();
+  for (const key of keys) {
+    const srv = installed[key];
+    item(key, `${srv.command} ${srv.args.join(" ")}`);
+  }
+
+  // Step 2 — Pick which servers to copy
+  console.log();
+  const copyAll = await confirm("Copy all servers?");
+  let serversToCopy: string[];
+
+  if (copyAll) {
+    serversToCopy = keys;
+  } else {
+    const picked = await chooseMultiple(
+      "Select servers to copy:",
+      keys.map((k) => ({ name: k }))
+    );
+    serversToCopy = picked.map((p) => p.name);
+    if (serversToCopy.length === 0) {
+      warn("No servers selected. Aborting.");
+      return;
+    }
+  }
+
+  // Step 3 — Pick target agents
+  const targets = detected.filter(
+    (a) => a.id !== source.id && supportsJsonConfig(a)
+  );
+
+  if (targets.length === 0) {
+    warn("No other agents with JSON config available as targets.");
+    return;
+  }
+
+  console.log();
+  const selectedTargets = await chooseMultiple("Copy TO which agents?", targets);
+  if (selectedTargets.length === 0) {
+    warn("No target agents selected. Aborting.");
+    return;
+  }
+
+  // Step 4 — Summary and confirm
+  console.log();
+  info(`Copying ${serversToCopy.length} server(s) from ${source.name} to:`);
+  for (const t of selectedTargets) {
+    info(`  → ${t.name}`);
+  }
+  console.log();
+
+  const ok = await confirm("Proceed?");
+  if (!ok) {
+    warn("Cancelled.");
+    return;
+  }
+
+  // Step 5 — Copy
+  console.log();
+  let copied = 0;
+  let skipped = 0;
+
+  for (const target of selectedTargets) {
+    for (const serverName of serversToCopy) {
+      const entry = installed[serverName];
+      const written = addMcpToAgent(target, serverName, entry);
+      if (written) {
+        success(`${serverName} → ${target.name}`);
+        copied++;
+      } else {
+        warn(`${serverName} → ${target.name} — skipped (non-JSON config)`);
+        skipped++;
+      }
+    }
+  }
+
+  console.log();
+  success(`Sync complete! ${copied} server(s) copied.`);
+  if (skipped > 0) {
+    warn(`${skipped} skipped (agents without JSON config support).`);
+  }
+  info("Restart your agents to pick up the changes.");
+}
+
 // ── Main ─────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
   // Show splash on every run except version
   const isVersion = command === "version" || command === "--version" || command === "-v";
   if (!isVersion) {
-    banner();
+    banner(PKG_VERSION);
   }
 
   if (!command) {
@@ -1142,6 +1295,11 @@ async function main(): Promise<void> {
       await cmdConfigure();
       break;
 
+    case "sync":
+    case "copy":
+      await cmdSync();
+      break;
+
     case "export":
       await cmdExport();
       break;
@@ -1159,7 +1317,7 @@ async function main(): Promise<void> {
     case "version":
     case "--version":
     case "-v":
-      console.log("zerocode 0.1.1");
+      console.log(`zerocode ${PKG_VERSION}`);
       break;
 
     default:
