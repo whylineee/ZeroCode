@@ -140,6 +140,21 @@ Snapshot all agent configs to `.zerocode/backup.json`. Reads raw file content fr
 
 Restore agent configs from a previous backup. Shows what's in the backup, confirms, then overwrites current configs.
 
+### `zerocode create`
+
+Interactive config builder. Pick MCP servers from the registry → optionally pick skills → saves a `.zerocode.json` file. Does not install anything — just builds the config. Aliases: `new`.
+
+### `zerocode apply [path]`
+
+Reads a `.zerocode.json` file → shows contents → detects agents on the machine with current MCP count → user picks target agents → collects env vars → confirms → installs MCP servers and skills. Aliases: `push`.
+
+Typical workflow:
+
+```
+zerocode create        # build your config
+zerocode apply         # push it to detected agents
+```
+
 ### `zerocode version` / `--version` / `-v`
 
 Print current version.

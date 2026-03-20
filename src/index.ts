@@ -55,6 +55,8 @@ function printUsage(): void {
   console.log("    zerocode import [path]            Import config from .zerocode.json");
   console.log("    zerocode backup                  Backup all agent configs");
   console.log("    zerocode restore                 Restore agent configs from backup");
+  console.log("    zerocode create                  Build a .zerocode.json config interactively");
+  console.log("    zerocode apply [path]             Apply .zerocode.json to detected agents");
   console.log();
   console.log("  Examples:");
   console.log();
@@ -1222,6 +1224,262 @@ async function cmdSync(): Promise<void> {
   info("Restart your agents to pick up the changes.");
 }
 
+// ── Create / Apply ──────────────────────────────────────────────
+
+async function cmdCreate(): Promise<void> {
+  heading("Create a portable config file");
+  info("Pick MCP servers and skills — save them to .zerocode.json.\n");
+
+  // Step 1 — Pick MCP servers
+  const mcpItems = mcpRegistry.map((m) => ({
+    name: `${m.name}  \x1b[2m${m.slug}\x1b[0m`,
+    slug: m.slug,
+  }));
+
+  const pickedMcp = await chooseMultiple("Select MCP servers to include:", mcpItems);
+  const mcpSlugs = pickedMcp.map((p) => p.slug!);
+
+  // Step 2 — Pick skills
+  console.log();
+  const wantSkills = await confirm("Include skills too?");
+  let skillSlugs: string[] = [];
+
+  if (wantSkills) {
+    const skillItems = skillRegistry.map((s) => ({
+      name: `${s.name}  \x1b[2m${s.slug}\x1b[0m`,
+      slug: s.slug,
+    }));
+    const pickedSkills = await chooseMultiple("Select skills to include:", skillItems);
+    skillSlugs = pickedSkills.map((p) => p.slug!);
+  }
+
+  if (mcpSlugs.length === 0 && skillSlugs.length === 0) {
+    warn("Nothing selected. Config file not created.");
+    return;
+  }
+
+  // Step 3 — Build manifest
+  const mcpServers = mcpSlugs
+    .map((slug) => {
+      const mcp = findMcp(slug);
+      if (!mcp) return null;
+      return {
+        slug: mcp.slug,
+        name: mcp.name,
+        envVars: mcp.envVars,
+      };
+    })
+    .filter(Boolean) as { slug: string; name: string; envVars?: string[] }[];
+
+  const manifest: ExportManifest = {
+    version: 1,
+    timestamp: new Date().toISOString(),
+    mcpServers,
+    skills: skillSlugs,
+    source: { agents: ["created-manually"] },
+  };
+
+  // Step 4 — Summary
+  console.log();
+  if (mcpServers.length > 0) {
+    success(`${mcpServers.length} MCP server(s):`);
+    for (const m of mcpServers) {
+      const envHint = m.envVars?.length ? `  (needs: ${m.envVars.join(", ")})` : "";
+      item(m.name, `${m.slug}${envHint}`);
+    }
+  }
+  if (skillSlugs.length > 0) {
+    console.log();
+    success(`${skillSlugs.length} skill(s):`);
+    for (const s of skillSlugs) {
+      item(s, "");
+    }
+  }
+
+  // Step 5 — Save
+  console.log();
+  const ok = await confirm(`Save to ${EXPORT_FILE}?`);
+  if (!ok) {
+    warn("Cancelled.");
+    return;
+  }
+
+  writeFileSync(EXPORT_FILE, JSON.stringify(manifest, null, 2) + "\n", "utf-8");
+  console.log();
+  success(`Config saved to ${EXPORT_FILE}`);
+  info("Next step: run 'zerocode apply' to install it to your agents.");
+}
+
+async function cmdApply(): Promise<void> {
+  const applyPath = args[1] || EXPORT_FILE;
+
+  heading("Apply config to agents");
+
+  // Step 1 — Read config file
+  if (!existsSync(applyPath)) {
+    error(`Config file not found: ${applyPath}`);
+    console.log();
+    info("Create one first with: zerocode create");
+    info("Or specify a path:     zerocode apply ./my-config.json");
+    return;
+  }
+
+  let manifest: ExportManifest;
+  try {
+    manifest = JSON.parse(readFileSync(applyPath, "utf-8"));
+  } catch {
+    error("Config file contains invalid JSON.");
+    return;
+  }
+
+  if (!manifest.version || !manifest.mcpServers) {
+    error("Invalid config file format.");
+    return;
+  }
+
+  // Step 2 — Show what's in the config
+  info(`Config: ${applyPath}`);
+  info(`Created: ${manifest.timestamp}`);
+  console.log();
+
+  if (manifest.mcpServers.length > 0) {
+    success(`${manifest.mcpServers.length} MCP server(s) to install:`);
+    for (const m of manifest.mcpServers) {
+      item(m.name, m.slug);
+    }
+  }
+  if (manifest.skills.length > 0) {
+    console.log();
+    success(`${manifest.skills.length} skill(s) to install:`);
+    for (const s of manifest.skills) {
+      item(s, "");
+    }
+  }
+
+  if (manifest.mcpServers.length === 0 && manifest.skills.length === 0) {
+    warn("Config file is empty. Nothing to apply.");
+    return;
+  }
+
+  // Step 3 — Detect agents
+  console.log();
+  heading("Detecting agents on your machine...");
+
+  const detected = detectAgents();
+  if (detected.length === 0) {
+    warn("No agents detected on this machine.");
+    info("Install an agent first (Claude Desktop, Cursor, Windsurf, etc.) and re-run.");
+    return;
+  }
+
+  success(`Found ${detected.length} agent(s):`);
+  console.log();
+  for (const a of detected) {
+    const installed = listInstalledMcp(a);
+    const count = Object.keys(installed).length;
+    const countHint = count > 0 ? `${count} MCP server(s) configured` : "no MCP servers yet";
+    item(a.name, `${a.scope} · ${countHint}`);
+  }
+
+  // Step 4 — User picks target agents
+  const jsonAgents = detected.filter((a) => supportsJsonConfig(a));
+  if (jsonAgents.length === 0) {
+    warn("No agents with JSON config support found.");
+    return;
+  }
+
+  console.log();
+  const selectedAgents = await chooseMultiple("Install to which agents?", jsonAgents);
+  if (selectedAgents.length === 0) {
+    warn("No agents selected. Aborting.");
+    return;
+  }
+
+  // Step 5 — Collect env vars
+  const allRequiredEnvVars: string[] = [];
+  for (const m of manifest.mcpServers) {
+    if (m.envVars) {
+      for (const v of m.envVars) {
+        if (!allRequiredEnvVars.includes(v)) {
+          allRequiredEnvVars.push(v);
+        }
+      }
+    }
+  }
+
+  let envValues: Record<string, string> = {};
+  if (allRequiredEnvVars.length > 0) {
+    console.log();
+    info(`Some servers need env vars: ${allRequiredEnvVars.join(", ")}`);
+    envValues = await askEnvVars(allRequiredEnvVars);
+  }
+
+  // Step 6 — Confirm
+  console.log();
+  info(`Will install ${manifest.mcpServers.length} server(s) + ${manifest.skills.length} skill(s) to:`);
+  for (const a of selectedAgents) {
+    info(`  → ${a.name}`);
+  }
+  console.log();
+
+  const ok = await confirm("Proceed?");
+  if (!ok) {
+    warn("Cancelled.");
+    return;
+  }
+
+  // Step 7 — Install MCP servers
+  console.log();
+  heading("Installing...");
+
+  let installed = 0;
+  let skipped = 0;
+
+  for (const agent of selectedAgents) {
+    for (const m of manifest.mcpServers) {
+      const regEntry = findMcp(m.slug);
+      if (regEntry) {
+        const entry = resolveEnvPlaceholders({ ...regEntry.entry }, envValues);
+        const serverName = m.slug.replace(/-mcp$/, "");
+        const written = addMcpToAgent(agent, serverName, entry);
+        if (written) {
+          success(`${m.name} → ${agent.name}`);
+          installed++;
+        } else {
+          warn(`${m.name} → ${agent.name} — skipped (non-JSON config)`);
+          skipped++;
+        }
+      } else {
+        warn(`${m.slug} not found in registry — skipped`);
+        skipped++;
+      }
+    }
+  }
+
+  // Step 8 — Install skills
+  if (manifest.skills.length > 0) {
+    console.log();
+    for (const slug of manifest.skills) {
+      const skill = findSkill(slug);
+      if (skill) {
+        const skillDir = join(process.cwd(), ".zerocode", "skills", skill.slug);
+        const skillPath = join(skillDir, "SKILL.md");
+        if (!existsSync(skillDir)) mkdirSync(skillDir, { recursive: true });
+        writeFileSync(skillPath, skill.skillMd + "\n", "utf-8");
+        success(`${skill.name} → ${skillPath}`);
+      } else {
+        warn(`Skill "${slug}" not found in registry — skipped`);
+      }
+    }
+  }
+
+  // Step 9 — Summary
+  console.log();
+  divider();
+  success(`Done! ${installed} server(s) installed${skipped > 0 ? `, ${skipped} skipped` : ""}.`);
+  info("Restart your agents to pick up the changes.");
+}
+
 // ── Update check ────────────────────────────────────────────────
 
 const UPDATE_CHECK_FILE = join(homedir(), ".zerocode", "update-check.json");
@@ -1396,6 +1654,16 @@ async function main(): Promise<void> {
 
     case "import":
       await cmdImport();
+      break;
+
+    case "create":
+    case "new":
+      await cmdCreate();
+      break;
+
+    case "apply":
+    case "push":
+      await cmdApply();
       break;
 
     case "help":
