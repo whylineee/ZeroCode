@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { writeFileSync, readFileSync, existsSync, mkdirSync } from "node:fs";
+import { writeFileSync, readFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { execSync } from "node:child_process";
 import {
@@ -27,6 +27,7 @@ function printUsage(): void {
   console.log();
   console.log("    zerocode init                    Interactive setup wizard");
   console.log("    zerocode detect                  Detect installed agents");
+  console.log("    zerocode configure               Pick an agent and manage it interactively");
   console.log("    zerocode list mcp                List available MCP servers");
   console.log("    zerocode list skills             List available skills");
   console.log("    zerocode add mcp <name>          Install MCP server to an agent");
@@ -34,6 +35,8 @@ function printUsage(): void {
   console.log("    zerocode remove mcp <name>       Remove MCP server from an agent");
   console.log("    zerocode status                  Show what's installed on each agent");
   console.log("    zerocode doctor                  Check your setup for issues");
+  console.log("    zerocode export                  Export config to shareable .zerocode.json");
+  console.log("    zerocode import [path]            Import config from .zerocode.json");
   console.log("    zerocode backup                  Backup all agent configs");
   console.log("    zerocode restore                 Restore agent configs from backup");
   console.log();
@@ -658,6 +661,412 @@ async function cmdRestore(): Promise<void> {
   info("Restart your agents to apply.");
 }
 
+// ── Export / Import ──────────────────────────────────────────────
+
+const EXPORT_FILE = join(process.cwd(), ".zerocode.json");
+
+interface ExportManifest {
+  version: 1;
+  timestamp: string;
+  mcpServers: {
+    slug: string;
+    name: string;
+    envVars?: string[];
+  }[];
+  skills: string[];
+  source: {
+    agents: string[];
+  };
+}
+
+async function cmdExport(): Promise<void> {
+  heading("Exporting configuration");
+
+  const detected = detectAgents();
+  if (detected.length === 0) {
+    warn("No agents detected. Nothing to export.");
+    return;
+  }
+
+  // Collect all unique MCP server slugs across agents
+  const mcpMap = new Map<string, { slug: string; name: string; envVars?: string[] }>();
+  const agentNames: string[] = [];
+
+  for (const agent of detected) {
+    const installed = listInstalledMcp(agent);
+    const keys = Object.keys(installed);
+    if (keys.length > 0) {
+      agentNames.push(agent.name);
+    }
+    for (const key of keys) {
+      if (mcpMap.has(key)) continue;
+      // Try to match back to registry for metadata
+      const regEntry = mcpRegistry.find(
+        (m) => m.slug.replace(/-mcp$/, "") === key
+      );
+      mcpMap.set(key, {
+        slug: regEntry?.slug ?? key,
+        name: regEntry?.name ?? key,
+        envVars: regEntry?.envVars,
+      });
+    }
+  }
+
+  // Collect installed skills
+  const skillsSlugs: string[] = [];
+  const skillsDir = join(process.cwd(), ".zerocode", "skills");
+  if (existsSync(skillsDir)) {
+    try {
+      const dirs = readdirSync(skillsDir, { withFileTypes: true });
+      for (const d of dirs) {
+        if (d.isDirectory() && existsSync(join(skillsDir, d.name, "SKILL.md"))) {
+          skillsSlugs.push(d.name);
+        }
+      }
+    } catch { /* ignore */ }
+  }
+
+  if (mcpMap.size === 0 && skillsSlugs.length === 0) {
+    warn("No MCP servers or skills found. Nothing to export.");
+    return;
+  }
+
+  const manifest: ExportManifest = {
+    version: 1,
+    timestamp: new Date().toISOString(),
+    mcpServers: Array.from(mcpMap.values()),
+    skills: skillsSlugs,
+    source: { agents: agentNames },
+  };
+
+  // Show summary
+  if (manifest.mcpServers.length > 0) {
+    success(`${manifest.mcpServers.length} MCP server(s):`);
+    for (const m of manifest.mcpServers) {
+      item(m.name, m.slug);
+    }
+  }
+  if (manifest.skills.length > 0) {
+    console.log();
+    success(`${manifest.skills.length} skill(s):`);
+    for (const s of manifest.skills) {
+      item(s, "");
+    }
+  }
+
+  console.log();
+  const ok = await confirm(`Export to ${EXPORT_FILE}?`);
+  if (!ok) {
+    warn("Cancelled.");
+    return;
+  }
+
+  writeFileSync(EXPORT_FILE, JSON.stringify(manifest, null, 2) + "\n", "utf-8");
+  console.log();
+  success(`Exported to ${EXPORT_FILE}`);
+  info("Share this file with your team or copy it to another machine.");
+  info("Import with: zerocode import");
+}
+
+async function cmdImport(): Promise<void> {
+  heading("Importing configuration");
+
+  const importPath = args[1] || EXPORT_FILE;
+
+  if (!existsSync(importPath)) {
+    error(`No manifest found at ${importPath}`);
+    info("Usage: zerocode import [path-to-.zerocode.json]");
+    info("Or run 'zerocode export' on the source machine first.");
+    return;
+  }
+
+  let manifest: ExportManifest;
+  try {
+    manifest = JSON.parse(readFileSync(importPath, "utf-8"));
+  } catch {
+    error("Manifest file is invalid JSON.");
+    return;
+  }
+
+  if (!manifest.version || !manifest.mcpServers) {
+    error("Invalid manifest format.");
+    return;
+  }
+
+  info(`Manifest from: ${manifest.timestamp}`);
+  info(`Source agents: ${manifest.source.agents.join(", ") || "unknown"}`);
+  console.log();
+
+  if (manifest.mcpServers.length > 0) {
+    success(`${manifest.mcpServers.length} MCP server(s) to install:`);
+    for (const m of manifest.mcpServers) {
+      item(m.name, m.slug);
+    }
+  }
+  if (manifest.skills.length > 0) {
+    console.log();
+    success(`${manifest.skills.length} skill(s) to install:`);
+    for (const s of manifest.skills) {
+      item(s, "");
+    }
+  }
+
+  // Pick target agents
+  console.log();
+  const detected = detectAgents();
+  if (detected.length === 0) {
+    warn("No agents detected on this machine.");
+    info("Install an agent first, then re-run.");
+    return;
+  }
+
+  const selectedAgents = await chooseMultiple("Install to which agents?", detected);
+  if (selectedAgents.length === 0) {
+    warn("No agents selected. Aborting.");
+    return;
+  }
+
+  // Collect all required env vars
+  const allRequiredEnvVars: string[] = [];
+  for (const m of manifest.mcpServers) {
+    if (m.envVars) {
+      for (const v of m.envVars) {
+        if (!allRequiredEnvVars.includes(v)) {
+          allRequiredEnvVars.push(v);
+        }
+      }
+    }
+  }
+
+  let envValues: Record<string, string> = {};
+  if (allRequiredEnvVars.length > 0) {
+    console.log();
+    info(`Some servers require env vars: ${allRequiredEnvVars.join(", ")}`);
+    envValues = await askEnvVars(allRequiredEnvVars);
+  }
+
+  // Install MCP servers
+  console.log();
+  heading("Installing MCP servers...");
+
+  for (const agent of selectedAgents) {
+    for (const m of manifest.mcpServers) {
+      const regEntry = findMcp(m.slug);
+      if (regEntry) {
+        const entry = resolveEnvPlaceholders({ ...regEntry.entry }, envValues);
+        const serverName = m.slug.replace(/-mcp$/, "");
+        addMcpToAgent(agent, serverName, entry);
+        success(`${m.name} → ${agent.name}`);
+      } else {
+        warn(`${m.slug} not found in registry — skipped`);
+      }
+    }
+  }
+
+  // Install skills
+  if (manifest.skills.length > 0) {
+    console.log();
+    heading("Installing skills...");
+
+    for (const slug of manifest.skills) {
+      const skill = findSkill(slug);
+      if (skill) {
+        const skillDir = join(process.cwd(), ".zerocode", "skills", skill.slug);
+        const skillPath = join(skillDir, "SKILL.md");
+        if (!existsSync(skillDir)) mkdirSync(skillDir, { recursive: true });
+        writeFileSync(skillPath, skill.skillMd + "\n", "utf-8");
+        success(`${skill.name} → ${skillPath}`);
+      } else {
+        warn(`Skill "${slug}" not found in registry — skipped`);
+      }
+    }
+  }
+
+  console.log();
+  success("Import complete!");
+  info("Restart your agents to pick up the new MCP servers.");
+}
+
+// ── Configure (agent-centric interactive) ────────────────────────
+
+async function cmdConfigure(): Promise<void> {
+  heading("Agent Configurator");
+
+  // Step 1 — Detect agents
+  const detected = detectAgents();
+  if (detected.length === 0) {
+    warn("No agents detected on this machine.");
+    info("Install an agent first (Claude Desktop, Cursor, Windsurf, etc.) and re-run.");
+    return;
+  }
+
+  success(`Found ${detected.length} agent(s):`);
+  console.log();
+  for (const a of detected) {
+    item(a.name, `${a.scope} · ${a.configPath}`);
+  }
+
+  // Step 2 — Pick an agent
+  const agent = await choose("Select an agent to configure:", detected);
+  if (!agent) {
+    warn("No agent selected. Aborting.");
+    return;
+  }
+
+  console.log();
+  success(`Selected: ${agent.name}`);
+
+  // Step 3 — Interactive menu loop
+  const actions = [
+    { name: "Add MCP server" },
+    { name: "Add skill" },
+    { name: "View installed MCP servers" },
+    { name: "Remove MCP server" },
+    { name: "Exit" },
+  ];
+
+  while (true) {
+    console.log();
+    divider();
+    const action = await choose(`What do you want to do with ${agent.name}?`, actions);
+    if (!action || action.name === "Exit") {
+      info("Done configuring.");
+      break;
+    }
+
+    if (action.name === "Add MCP server") {
+      await configureAddMcp(agent);
+    } else if (action.name === "Add skill") {
+      await configureAddSkill();
+    } else if (action.name === "View installed MCP servers") {
+      configureViewInstalled(agent);
+    } else if (action.name === "Remove MCP server") {
+      await configureRemoveMcp(agent);
+    }
+  }
+}
+
+async function configureAddMcp(agent: AgentInfo): Promise<void> {
+  // Let user pick from the full registry
+  const items = mcpRegistry.map((m) => ({ name: `${m.name}  \x1b[2m${m.slug}\x1b[0m`, slug: m.slug }));
+  const picked = await choose("Select MCP server to install:", items);
+  if (!picked) {
+    warn("Nothing selected.");
+    return;
+  }
+
+  const mcp = findMcp(picked.slug!);
+  if (!mcp) return;
+
+  info(mcp.description);
+
+  // Collect env vars
+  let envValues: Record<string, string> = {};
+  if (mcp.envVars && mcp.envVars.length > 0) {
+    console.log();
+    info(`Requires: ${mcp.envVars.join(", ")}`);
+    envValues = await askEnvVars(mcp.envVars);
+  }
+
+  const entry = resolveEnvPlaceholders({ ...mcp.entry }, envValues);
+  const serverName = mcp.slug.replace(/-mcp$/, "");
+
+  console.log();
+  info(`Server:  ${mcp.name}`);
+  info(`Agent:   ${agent.name}`);
+  info(`Key:     ${serverName}`);
+  console.log();
+
+  const ok = await confirm("Install this MCP server?");
+  if (!ok) {
+    warn("Cancelled.");
+    return;
+  }
+
+  addMcpToAgent(agent, serverName, entry);
+  success(`${mcp.name} installed to ${agent.name}`);
+  info("Restart your agent to pick up the new MCP server.");
+}
+
+async function configureAddSkill(): Promise<void> {
+  const items = skillRegistry.map((s) => ({ name: `${s.name}  \x1b[2m${s.slug}\x1b[0m`, slug: s.slug }));
+  const picked = await choose("Select skill to install:", items);
+  if (!picked) {
+    warn("Nothing selected.");
+    return;
+  }
+
+  const skill = findSkill(picked.slug!);
+  if (!skill) return;
+
+  info(skill.description);
+
+  const skillDir = join(process.cwd(), ".zerocode", "skills", skill.slug);
+  const skillPath = join(skillDir, "SKILL.md");
+
+  if (existsSync(skillPath)) {
+    const overwrite = await confirm(`Skill already exists at ${skillPath}. Overwrite?`);
+    if (!overwrite) {
+      warn("Cancelled.");
+      return;
+    }
+  }
+
+  if (!existsSync(skillDir)) {
+    mkdirSync(skillDir, { recursive: true });
+  }
+
+  writeFileSync(skillPath, skill.skillMd + "\n", "utf-8");
+  success(`${skill.name} installed to ${skillPath}`);
+}
+
+function configureViewInstalled(agent: AgentInfo): void {
+  const installed = listInstalledMcp(agent);
+  const keys = Object.keys(installed);
+
+  console.log();
+  if (keys.length === 0) {
+    info("No MCP servers configured on this agent.");
+  } else {
+    success(`${keys.length} MCP server(s) on ${agent.name}:`);
+    console.log();
+    for (const key of keys) {
+      const srv = installed[key];
+      item(key, `${srv.command} ${srv.args.join(" ")}`);
+    }
+  }
+}
+
+async function configureRemoveMcp(agent: AgentInfo): Promise<void> {
+  const installed = listInstalledMcp(agent);
+  const keys = Object.keys(installed);
+
+  if (keys.length === 0) {
+    info("No MCP servers to remove.");
+    return;
+  }
+
+  const items = keys.map((k) => ({ name: k }));
+  const picked = await choose("Select MCP server to remove:", items);
+  if (!picked) {
+    warn("Nothing selected.");
+    return;
+  }
+
+  const ok = await confirm(`Remove "${picked.name}" from ${agent.name}?`);
+  if (!ok) {
+    warn("Cancelled.");
+    return;
+  }
+
+  const removed = removeMcpFromAgent(agent, picked.name);
+  if (removed) {
+    success(`Removed "${picked.name}" from ${agent.name}`);
+  } else {
+    warn(`"${picked.name}" was not found.`);
+  }
+}
+
 // ── Main ─────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
@@ -726,6 +1135,19 @@ async function main(): Promise<void> {
 
     case "restore":
       await cmdRestore();
+      break;
+
+    case "configure":
+    case "config":
+      await cmdConfigure();
+      break;
+
+    case "export":
+      await cmdExport();
+      break;
+
+    case "import":
+      await cmdImport();
       break;
 
     case "help":

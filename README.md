@@ -55,8 +55,11 @@ npx @whylineee/zerocode doctor          # check your setup
 | `zerocode add mcp <name>` | Install an MCP server to an agent |
 | `zerocode add skill <name>` | Install a skill to the project |
 | `zerocode remove mcp <name>` | Remove an MCP server from an agent |
+| `zerocode configure` | Pick an agent and manage it interactively |
 | `zerocode status` | Show what's installed on each agent |
 | `zerocode doctor` | Check runtimes, configs, and env vars |
+| `zerocode export` | Export config to shareable `.zerocode.json` |
+| `zerocode import [path]` | Import config from `.zerocode.json` |
 | `zerocode backup` | Backup all agent configs |
 | `zerocode restore` | Restore configs from backup |
 
@@ -99,8 +102,16 @@ src/
 
 Zero runtime dependencies. Built with Node.js builtins only.
 
+## Star History
+
+<a href="https://star-history.com/#whylineee/ZeroCode&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=whylineee/ZeroCode&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=whylineee/ZeroCode&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=whylineee/ZeroCode&type=Date" />
+ </picture>
+</a>
+
 ## License
 
 MIT
-# ZeroCode
-# ZeroCode
