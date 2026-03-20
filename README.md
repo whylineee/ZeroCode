@@ -62,10 +62,11 @@ npx @whylineee/zerocode add skill pr-reviewer
 | **02** | **30+ MCP servers** | Filesystem, Git, GitHub, Slack, Notion, PostgreSQL, Docker, Stripe, and more |
 | **03** | **Reusable skills** | PR review, prompt engineering, Docker best practices — as installable SKILL.md files |
 | **04** | **Agent configurator** | Pick an agent, then add/remove/inspect servers interactively |
-| **05** | **Export / Import** | Share your entire setup as a portable `.zerocode.json` — onboard teammates in seconds |
-| **06** | **Doctor** | Checks runtimes, validates configs, flags broken env vars |
-| **07** | **Backup / Restore** | Snapshot all agent configs before you experiment |
-| **08** | **Zero dependencies** | Pure Node.js builtins. Nothing to install. Nothing to break. |
+| **05** | **Sync between agents** | Copy MCP servers from Cursor to Claude Desktop (or any combo) in one command |
+| **06** | **Export / Import** | Share your entire setup as a portable `.zerocode.json` — onboard teammates in seconds |
+| **07** | **Doctor** | Checks runtimes, validates configs, flags broken env vars |
+| **08** | **Backup / Restore** | Snapshot all agent configs before you experiment |
+| **09** | **Zero dependencies** | Pure Node.js builtins. Nothing to install. Nothing to break. |
 
 <br>
 
@@ -209,6 +210,7 @@ The `init` wizard offers quick-start bundles so you don't pick from 30 servers o
   zerocode add mcp <name>        Install MCP server to an agent
   zerocode add skill <name>      Install a skill to the project
   zerocode remove mcp <name>     Remove MCP server from an agent
+  zerocode sync                  Copy MCP servers from one agent to another
   zerocode status                Show what's installed on each agent
   zerocode doctor                Check runtimes, configs, and env vars
   zerocode export                Export setup to shareable .zerocode.json
