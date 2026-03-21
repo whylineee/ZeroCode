@@ -214,6 +214,7 @@ Starter packs for `init`:
 | `ci-cd-pipeline` | CI/CD Pipeline |
 | `database-migration` | Database Migration |
 | `tailwind-css` | Tailwind CSS |
+| `openai-frontend-skill` | OpenAI Frontend Skill |
 
 Skills are installed as `SKILL.md` files in `.zerocode/skills/<slug>/SKILL.md`. Each skill contains a trigger, workflow steps, and expected output format.
 

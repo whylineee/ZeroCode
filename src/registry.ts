@@ -577,6 +577,59 @@ Run when writing or reviewing Tailwind CSS code.
 - Responsive design assessment
 - Theme consistency check`,
   },
+  {
+    slug: "openai-frontend-skill",
+    name: "OpenAI Frontend Skill",
+    description: "Restrained composition, image-led hierarchy, tasteful motion for production-ready frontends.",
+    installCommand: "$skill-installer frontend-skill",
+    skillMd: `# Skill: OpenAI Frontend Skill
+
+## Trigger
+Use when the task asks for a visually strong landing page, website, app, prototype, demo, or game UI.
+
+## Working Model
+Before building, write three things:
+- visual thesis: one sentence describing mood, material, and energy
+- content plan: hero, support, detail, final CTA
+- interaction thesis: 2-3 motion ideas that change the feel of the page
+
+## Beautiful Defaults
+- Start with composition, not components.
+- Prefer a full-bleed hero or full-canvas visual anchor.
+- Make the brand or product name the loudest text.
+- Keep copy short enough to scan in seconds.
+- Default to cardless layouts. Use sections, columns, dividers, lists, and media blocks instead.
+- Treat the first viewport as a poster, not a document.
+- Limit the system: two typefaces max, one accent color by default.
+
+## Landing Pages
+1. Hero: brand or product, promise, CTA, and one dominant visual
+2. Support: one concrete feature, offer, or proof point
+3. Detail: atmosphere, workflow, product depth, or story
+4. Final CTA: convert, start, visit, or contact
+
+## Motion
+Ship at least 2-3 intentional motions:
+- one entrance sequence in the hero
+- one scroll-linked, sticky, or depth effect
+- one hover, reveal, or layout transition that sharpens affordance
+
+## Hard Rules
+- No cards by default.
+- No more than one dominant idea per section.
+- No headline should overpower the brand on branded pages.
+- No filler copy.
+- No more than two typefaces without a clear reason.
+- No more than one accent color unless the product already has a strong system.
+
+## Litmus Checks
+- Is the brand or product unmistakable in the first screen?
+- Is there one strong visual anchor?
+- Can the page be understood by scanning headlines only?
+- Does each section have one job?
+- Are cards actually necessary?
+- Does motion improve hierarchy or atmosphere?`,
+  },
 ];
 
 export function findMcp(slug: string): McpRegistryEntry | undefined {
