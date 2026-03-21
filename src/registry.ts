@@ -630,6 +630,259 @@ Ship at least 2-3 intentional motions:
 - Are cards actually necessary?
 - Does motion improve hierarchy or atmosphere?`,
   },
+  {
+    slug: "remotion-best-practices",
+    name: "Remotion Best Practices",
+    description: "Programmatic video with React — composition, timing, rendering, deployment.",
+    installCommand: "npx skills add remotion-dev/skills@remotion-best-practices",
+    skillMd: `# Skill: Remotion Best Practices
+
+## Trigger
+Use when creating or reviewing Remotion video compositions.
+
+## Workflow
+1. Structure compositions with proper sequence and timing.
+2. Use input props for dynamic content.
+3. Configure the rendering pipeline for consistent output.
+4. Test frame-accurate transitions before deploying.
+
+## Output
+- Composition review
+- Timing and transition assessment
+- Rendering pipeline validation`,
+  },
+  {
+    slug: "vercel-composition-patterns",
+    name: "Vercel Composition Patterns",
+    description: "Advanced React composition — compound components, render props, context modules.",
+    installCommand: "npx skills add vercel-labs/agent-skills@vercel-composition-patterns",
+    skillMd: `# Skill: Vercel Composition Patterns
+
+## Trigger
+Use when building reusable component systems or reviewing React architecture.
+
+## Workflow
+1. Identify components that should be compound instead of monolithic.
+2. Apply render prop and context module patterns.
+3. Eliminate prop drilling with scoped context.
+4. Validate reusability across different layouts.
+
+## Output
+- Component architecture review
+- Composition pattern recommendations
+- Prop drilling elimination plan`,
+  },
+  {
+    slug: "vercel-react-native-skills",
+    name: "React Native Skills",
+    description: "React Native patterns — navigation, native modules, performance, Expo workflows.",
+    installCommand: "npx skills add vercel-labs/agent-skills@vercel-react-native-skills",
+    skillMd: `# Skill: React Native Skills
+
+## Trigger
+Use when building or reviewing React Native applications.
+
+## Workflow
+1. Structure navigation with typed routes.
+2. Integrate native modules correctly per platform.
+3. Optimize performance for both iOS and Android.
+4. Follow Expo workflow best practices.
+
+## Output
+- Navigation structure review
+- Platform-specific component assessment
+- Performance optimization plan`,
+  },
+  {
+    slug: "brainstorming",
+    name: "Brainstorming",
+    description: "Structured brainstorming — diverge, cluster, evaluate, converge.",
+    installCommand: "npx skills add obra/superpowers@brainstorming",
+    skillMd: `# Skill: Brainstorming
+
+## Trigger
+Use when the agent needs to generate and evaluate ideas systematically.
+
+## Workflow
+1. Diverge: generate 10+ ideas without filtering.
+2. Cluster: group related ideas into themes.
+3. Evaluate: score clusters on impact and feasibility.
+4. Converge: pick top 2-3 and define next actions.
+
+## Output
+- Idea clusters with themes
+- Impact/feasibility scores
+- Ranked next steps`,
+  },
+  {
+    slug: "seo-audit",
+    name: "SEO Audit",
+    description: "Structured SEO audits — technical SEO, content, meta tags, performance.",
+    installCommand: "npx skills add coreyhaines31/marketingskills@seo-audit",
+    skillMd: `# Skill: SEO Audit
+
+## Trigger
+Use when auditing or optimizing a website for search engines.
+
+## Workflow
+1. Check technical SEO: crawlability, indexing, sitemaps.
+2. Review meta tags: title, description, OG, structured data.
+3. Assess content quality: headings, keywords, readability.
+4. Measure performance: Core Web Vitals, page speed.
+
+## Output
+- Technical SEO findings
+- Content quality assessment
+- Prioritized fix list`,
+  },
+  {
+    slug: "pdf-skill",
+    name: "PDF",
+    description: "Read, extract, and generate PDF documents with proper structure.",
+    installCommand: "npx skills add anthropics/skills@pdf",
+    skillMd: `# Skill: PDF
+
+## Trigger
+Use when the workflow involves reading or creating PDF files.
+
+## Workflow
+1. Extract text with structure preserved.
+2. Handle tables and lists correctly.
+3. Maintain heading hierarchy.
+4. Output clean markdown or structured data.
+
+## Output
+- Structured text extraction
+- Table and list parsing
+- Formatted PDF generation`,
+  },
+  {
+    slug: "copywriting-skill",
+    name: "Copywriting",
+    description: "Persuasive copy — headlines, CTAs, product descriptions, brand voice.",
+    installCommand: "npx skills add coreyhaines31/marketingskills@copywriting",
+    skillMd: `# Skill: Copywriting
+
+## Trigger
+Use when writing marketing copy, product pages, or ad text.
+
+## Workflow
+1. Define brand voice and target audience.
+2. Lead with benefits, not features.
+3. Keep headlines to one clear idea.
+4. End every section with a reason to act.
+
+## Output
+- Brand-consistent headlines
+- Benefits-focused body copy
+- Clear calls to action`,
+  },
+  {
+    slug: "audit-website",
+    name: "Audit Website",
+    description: "Website audits — security headers, performance, accessibility, SEO.",
+    installCommand: "npx skills add squirrelscan/skills@audit-website",
+    skillMd: `# Skill: Audit Website
+
+## Trigger
+Use before launching or auditing a production website.
+
+## Workflow
+1. Check security headers: CSP, HSTS, X-Frame-Options.
+2. Review SSL/TLS configuration.
+3. Measure performance: load time, asset optimization.
+4. Verify accessibility and SEO basics.
+
+## Output
+- Security header report
+- Performance bottleneck list
+- Accessibility and SEO findings`,
+  },
+  {
+    slug: "writing-plans",
+    name: "Writing Plans",
+    description: "Implementation plans — scope, task breakdown, dependencies, milestones.",
+    installCommand: "npx skills add obra/superpowers@writing-plans",
+    skillMd: `# Skill: Writing Plans
+
+## Trigger
+Use when the agent needs to break down complex work into an actionable plan.
+
+## Workflow
+1. Define scope and constraints.
+2. Break into concrete tasks (max 2h each).
+3. Map dependencies between tasks.
+4. Sequence milestones and identify risks.
+
+## Output
+- Scoped task breakdown
+- Dependency map
+- Milestone sequence with risks`,
+  },
+  {
+    slug: "better-auth-best-practices",
+    name: "Better Auth Best Practices",
+    description: "Auth with Better Auth — sessions, OAuth, MFA, security hardening.",
+    installCommand: "npx skills add better-auth/skills@better-auth-best-practices",
+    skillMd: `# Skill: Better Auth Best Practices
+
+## Trigger
+Use when building or reviewing authentication with Better Auth.
+
+## Workflow
+1. Implement session management: creation, refresh, revocation.
+2. Configure OAuth provider integration.
+3. Set up MFA for sensitive operations.
+4. Apply CSRF and rate limiting protections.
+
+## Output
+- Session management review
+- OAuth configuration assessment
+- Security hardening checklist`,
+  },
+  {
+    slug: "subagent-driven-development",
+    name: "Subagent-Driven Development",
+    description: "Multi-agent orchestration — task decomposition, parallel dispatch, error recovery.",
+    installCommand: "npx skills add obra/superpowers@subagent-driven-development",
+    skillMd: `# Skill: Subagent-Driven Development
+
+## Trigger
+Use when the workflow benefits from splitting work across multiple agent instances.
+
+## Workflow
+1. Decompose the task into independent units.
+2. Define input/output contracts for each sub-agent.
+3. Dispatch sub-agents in parallel where possible.
+4. Aggregate results with conflict resolution.
+5. Handle partial failures gracefully.
+
+## Output
+- Task decomposition plan
+- Sub-agent contracts
+- Aggregation and error recovery strategy`,
+  },
+  {
+    slug: "web-accessibility",
+    name: "Web Accessibility",
+    description: "WCAG-aligned a11y — semantic HTML, ARIA, keyboard nav, contrast.",
+    installCommand: "npx skills add supercent-io/skills-template@web-accessibility",
+    skillMd: `# Skill: Web Accessibility
+
+## Trigger
+Use before building or reviewing UI for accessibility compliance.
+
+## Workflow
+1. Use semantic HTML elements (nav, main, article, section).
+2. Add ARIA roles and labels where needed.
+3. Ensure keyboard navigation and focus management.
+4. Check color contrast (minimum 4.5:1 for text).
+
+## Output
+- Semantic HTML review
+- Keyboard navigation assessment
+- Color contrast report`,
+  },
 ];
 
 export function findMcp(slug: string): McpRegistryEntry | undefined {

@@ -215,6 +215,18 @@ Starter packs for `init`:
 | `database-migration` | Database Migration |
 | `tailwind-css` | Tailwind CSS |
 | `openai-frontend-skill` | OpenAI Frontend Skill |
+| `remotion-best-practices` | Remotion Best Practices |
+| `vercel-composition-patterns` | Vercel Composition Patterns |
+| `vercel-react-native-skills` | React Native Skills |
+| `brainstorming` | Brainstorming |
+| `seo-audit` | SEO Audit |
+| `pdf-skill` | PDF |
+| `copywriting-skill` | Copywriting |
+| `audit-website` | Audit Website |
+| `writing-plans` | Writing Plans |
+| `better-auth-best-practices` | Better Auth Best Practices |
+| `subagent-driven-development` | Subagent-Driven Development |
+| `web-accessibility` | Web Accessibility |
 
 Skills are installed as `SKILL.md` files in `.zerocode/skills/<slug>/SKILL.md`. Each skill contains a trigger, workflow steps, and expected output format.
 
