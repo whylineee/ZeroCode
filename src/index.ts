@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { writeFileSync, readFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
+import { writeFileSync, readFileSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
@@ -57,6 +57,9 @@ function printUsage(): void {
   console.log("    zerocode restore                 Restore agent configs from backup");
   console.log("    zerocode create                  Build a .zerocode.json config interactively");
   console.log("    zerocode apply [path]             Apply .zerocode.json to detected agents");
+  console.log("    zerocode remember [text]          Save a cross-agent note");
+  console.log("    zerocode notes                   List all saved notes");
+  console.log("    zerocode forget                  Delete a saved note");
   console.log();
   console.log("  Examples:");
   console.log();
@@ -1567,6 +1570,162 @@ function printUpdateNotice(latest: string): void {
   console.log();
 }
 
+// ── Notes (cross-agent memory) ───────────────────────────────────
+
+const NOTES_PREFIX = "note-";
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40);
+}
+
+function getNotesDir(): string {
+  return join(process.cwd(), ".zerocode", "skills");
+}
+
+interface NoteEntry {
+  slug: string;
+  title: string;
+  content: string;
+  createdAt: string;
+}
+
+function listNotes(): NoteEntry[] {
+  const skillsDir = getNotesDir();
+  if (!existsSync(skillsDir)) return [];
+
+  const dirs = readdirSync(skillsDir, { withFileTypes: true });
+  const notes: NoteEntry[] = [];
+
+  for (const d of dirs) {
+    if (!d.isDirectory() || !d.name.startsWith(NOTES_PREFIX)) continue;
+    const skillPath = join(skillsDir, d.name, "SKILL.md");
+    if (!existsSync(skillPath)) continue;
+
+    const raw = readFileSync(skillPath, "utf-8");
+    const titleMatch = raw.match(/^# Note: (.+)$/m);
+    const dateMatch = raw.match(/^\*Created: (.+)\*$/m);
+    const contentStart = raw.indexOf("\n\n");
+    const contentEnd = raw.indexOf("\n\n---");
+
+    const title = titleMatch?.[1] ?? d.name;
+    const content =
+      contentStart !== -1 && contentEnd !== -1
+        ? raw.slice(contentStart + 2, contentEnd).trim()
+        : "";
+    const createdAt = dateMatch?.[1] ?? "unknown";
+
+    notes.push({ slug: d.name, title, content, createdAt });
+  }
+
+  return notes.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+async function cmdRemember(): Promise<void> {
+  heading("Remember");
+
+  // Collect note text from args or interactively
+  const inlineText = args.slice(1).join(" ").trim();
+  let noteText = inlineText;
+
+  if (!noteText) {
+    noteText = await ask("What do you want to remember?");
+    if (!noteText.trim()) {
+      error("Empty note — nothing saved.");
+      return;
+    }
+  }
+
+  const titleInput = await ask("Short title (or press Enter to auto-generate):");
+  const title = titleInput.trim() || noteText.slice(0, 60);
+  const slug = NOTES_PREFIX + slugify(title) + "-" + Date.now().toString(36);
+  const now = new Date().toISOString().slice(0, 19).replace("T", " ");
+
+  const skillMd = `# Note: ${title}
+
+${noteText}
+
+---
+
+*Created: ${now}*
+*This is a cross-agent note created by \`zerocode remember\`.*
+*All AI agents in this project can read it from .zerocode/skills/${slug}/SKILL.md*
+`;
+
+  const noteDir = join(getNotesDir(), slug);
+  mkdirSync(noteDir, { recursive: true });
+  writeFileSync(join(noteDir, "SKILL.md"), skillMd, "utf-8");
+
+  console.log();
+  success(`Note saved: ${title}`);
+  info(`Location: .zerocode/skills/${slug}/SKILL.md`);
+  info("All agents in this project can now read this note.");
+}
+
+async function cmdNotes(): Promise<void> {
+  heading("Notes");
+
+  const notes = listNotes();
+
+  if (notes.length === 0) {
+    info("No notes found.");
+    info('Use "zerocode remember" to create one.');
+    return;
+  }
+
+  info(`${notes.length} note${notes.length > 1 ? "s" : ""} found:\n`);
+
+  for (const note of notes) {
+    const D = "\x1b[2m";
+    const B = "\x1b[1m";
+    const C = "\x1b[36m";
+    const R = "\x1b[0m";
+    console.log(`  ${C}${B}${note.title}${R}`);
+    console.log(`  ${D}${note.content.length > 120 ? note.content.slice(0, 120) + "…" : note.content}${R}`);
+    console.log(`  ${D}${note.createdAt}  •  ${note.slug}${R}`);
+    console.log();
+  }
+}
+
+async function cmdForget(): Promise<void> {
+  heading("Forget");
+
+  const notes = listNotes();
+
+  if (notes.length === 0) {
+    info("No notes to forget.");
+    return;
+  }
+
+  const items = notes.map((n) => ({ name: `${n.title}  (${n.createdAt})`, slug: n.slug }));
+  const selected = await choose("Which note do you want to forget?", items);
+  if (!selected) {
+    info("Cancelled.");
+    return;
+  }
+  const note = notes.find((n) => n.slug === selected.slug);
+
+  if (!note) {
+    error("Note not found.");
+    return;
+  }
+
+  const ok = await confirm(`Delete note "${note.title}"?`);
+  if (!ok) {
+    info("Cancelled.");
+    return;
+  }
+
+  const noteDir = join(getNotesDir(), note.slug);
+  rmSync(noteDir, { recursive: true, force: true });
+
+  console.log();
+  success(`Note "${note.title}" deleted.`);
+}
+
 // ── Main ─────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
@@ -1664,6 +1823,18 @@ async function main(): Promise<void> {
     case "apply":
     case "push":
       await cmdApply();
+      break;
+
+    case "remember":
+      await cmdRemember();
+      break;
+
+    case "notes":
+      await cmdNotes();
+      break;
+
+    case "forget":
+      await cmdForget();
       break;
 
     case "help":

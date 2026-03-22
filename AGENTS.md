@@ -155,6 +155,20 @@ zerocode create        # build your config
 zerocode apply         # push it to detected agents
 ```
 
+### `zerocode remember [text]`
+
+Save a cross-agent note. Creates a SKILL.md in `.zerocode/skills/note-<slug>/` so all AI agents in the project can read it. If text is provided inline, uses it directly; otherwise prompts interactively. Asks for a short title (or auto-generates one).
+
+Use case: you work with multiple agents (Claude Code, Codex, Cursor, etc.) and want to store a note that all of them can see without patching AGENTS.md or CLAUDE.md manually.
+
+### `zerocode notes`
+
+List all saved cross-agent notes with title, preview, and creation date.
+
+### `zerocode forget`
+
+Delete a saved note. Shows a numbered list of existing notes, lets you pick one, confirms before deleting.
+
 ### `zerocode version` / `--version` / `-v`
 
 Print current version.
