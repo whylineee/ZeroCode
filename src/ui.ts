@@ -31,7 +31,7 @@ export function banner(version?: string): void {
   console.log(`${C1}${BOLD}     ███╔╝  ${C2}██╔══╝  ${C3}██╔══██╗${C4}██║   ██║${RESET}`);
   console.log(`${C1}${BOLD}    ███████╗${C2}███████╗${C3}██║  ██║${C4}╚██████╔╝${RESET}`);
   console.log(`${C1}${BOLD}    ╚══════╝${C2}╚══════╝${C3}╚═╝  ╚═╝${C4} ╚═════╝ ${RESET}`);
-  console.log(`${G3}${DIM}                        made by whylineee${RESET}`);
+  console.log(`${G3}${DIM}              made by whylineee${RESET}`);
   console.log();
   console.log(`${G3}    ──────────────────────────────────${RESET}`);
   console.log(`${P1}${BOLD}       C O D E${RESET}  ${G2}${DIM}v${ver}${RESET}`);
